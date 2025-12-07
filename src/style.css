@@ -1,0 +1,11 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+#webgl-canvas {
+  display: block;
+  height: 100dvh;
+  width: 100dvw;
+}
