@@ -1,4 +1,6 @@
 import './style.css';
+import vertexShaderCode from './shaders/plane.vert.wgsl?raw';
+import fragmentShaderCode from './shaders/plane.frag.wgsl?raw';
 
 async function initWebGPU() {
   // Canvas要素の取得
@@ -8,13 +10,9 @@ async function initWebGPU() {
   const adapter = await navigator.gpu.requestAdapter() as GPUAdapter;
   const device = await adapter.requestDevice();
 
-  // Canvasコンテキストの取得と設定
+  // Canvasコンテキストの取得
   const context = canvas.getContext('webgpu') as GPUCanvasContext;
   const canvasFormat = navigator.gpu.getPreferredCanvasFormat();
-  context.configure({
-    device: device,
-    format: canvasFormat,
-  });
 
   // 頂点データの定義（四角形の4つの頂点）
   const vertices = new Float32Array([
@@ -31,19 +29,9 @@ async function initWebGPU() {
   });
   device.queue.writeBuffer(vertexBuffer, 0, vertices);
 
-  // WGSLシェーダーの定義
+  // WGSLシェーダーの定義（別ファイルから読み込み）
   const shaderModule = device.createShaderModule({
-    code: `
-      @vertex
-      fn vertexMain(@location(0) position: vec2f) -> @builtin(position) vec4f {
-        return vec4f(position, 0.0, 1.0);
-      }
-
-      @fragment
-      fn fragmentMain() -> @location(0) vec4f {
-        return vec4f(1.0, 0.0, 0.0, 1.0); // 赤色
-      }
-    `,
+    code: vertexShaderCode + fragmentShaderCode,
   });
 
   // レンダーパイプラインの構築
@@ -79,24 +67,44 @@ async function initWebGPU() {
     },
   });
 
-  // 描画コマンドの記録と実行
-  const encoder = device.createCommandEncoder();
-  const textureView = context.getCurrentTexture().createView();
-  const renderPass = encoder.beginRenderPass({
-    colorAttachments: [
-      {
-        view: textureView,
-        loadOp: 'clear',
-        clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 }, // 黒色
-        storeOp: 'store',
-      },
-    ],
-  });
-  renderPass.setPipeline(pipeline);
-  renderPass.setVertexBuffer(0, vertexBuffer);
-  renderPass.draw(4); // 4つの頂点を描画
-  renderPass.end();
-  device.queue.submit([encoder.finish()]);
+  // 描画処理
+  function render() {
+    const encoder = device.createCommandEncoder();
+    const textureView = context.getCurrentTexture().createView();
+    const renderPass = encoder.beginRenderPass({
+      colorAttachments: [
+        {
+          view: textureView,
+          loadOp: 'clear',
+          clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 }, // 黒色
+          storeOp: 'store',
+        },
+      ],
+    });
+    renderPass.setPipeline(pipeline);
+    renderPass.setVertexBuffer(0, vertexBuffer);
+    renderPass.draw(4); // 4つの頂点を描画
+    renderPass.end();
+    device.queue.submit([encoder.finish()]);
+  }
+
+  // キャンバスサイズの調整とコンテキスト設定
+  function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    context.configure({
+      device: device,
+      format: canvasFormat,
+    });
+
+    // リサイズ後に再描画
+    render();
+  }
+
+  // 初期化時とリサイズ時にキャンバスサイズを調整
+  resizeCanvas();
+  window.addEventListener('resize', resizeCanvas);
 }
 
 initWebGPU();
